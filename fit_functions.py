@@ -1,13 +1,14 @@
+import multiprocessing
+
 import numpy as np
 import scipy
 import scipy.integrate
 import scipy.interpolate
-import multiprocessing
+
 # For parallelization
 from joblib import Parallel, delayed
 
 import nekhoroshev_tools as nt
-
 
 NCORES = multiprocessing.cpu_count()
 
@@ -16,8 +17,7 @@ def current_estimate_backward(I_min, I_max, I_star, exponent, c, t):
     module = nt.stationary_dist(I_min, I_max, I_star, exponent, c) * 2
     ana_current = np.asarray(
         nt.current_generic(
-            t, lambda x: module, I_max,
-            (I_max / 3) * 2, I_star, exponent, c
+            t, lambda x: module, I_max, (I_max / 3) * 2, I_star, exponent, c
         )
     )
     return ana_current
@@ -25,22 +25,24 @@ def current_estimate_backward(I_min, I_max, I_star, exponent, c, t):
 
 def current_estimate_forward(I_min, I_max, I_star, exponent, c, t):
     module = nt.stationary_dist(I_min, I_max, I_star, exponent, c) * 2
+
     def dist(x):
         if hasattr(x, "__iter__"):
             y = np.empty_like(x)
             for i, e in enumerate(x):
-                y[i] = -module if e <= I_min else module * \
-                    (((e - I_min) / (I_max - I_min)) - 1)
+                y[i] = (
+                    -module
+                    if e <= I_min
+                    else module * (((e - I_min) / (I_max - I_min)) - 1)
+                )
             return y
         if x <= I_min:
-            return - module
+            return -module
         else:
             return module * (((x - I_min) / (I_max - I_min)) - 1)
+
     ana_current = np.asarray(
-        nt.current_generic(
-            t, dist, I_max,
-            (I_max / 3) * 2, I_star, exponent, c
-        )
+        nt.current_generic(t, dist, I_max, (I_max / 3) * 2, I_star, exponent, c)
     )
     return ana_current
 
@@ -72,15 +74,11 @@ def interpolation_system(data_list):
                 t_high = np.append(t_high, d["t_abs"][idx:])
                 c_high = np.append(c_high, d["cur"][idx:])
 
-    c_high = np.array(
-        [c for c, _ in sorted(zip(c_high, t_high), key=lambda x: x[1])]
-    )
+    c_high = np.array([c for c, _ in sorted(zip(c_high, t_high), key=lambda x: x[1])])
     t_high = np.array(sorted(t_high))
-    c_low = np.array(
-        [c for c, _ in sorted(zip(c_low, t_low), key=lambda x: x[1])]
-    )
+    c_low = np.array([c for c, _ in sorted(zip(c_low, t_low), key=lambda x: x[1])])
     t_low = np.array(sorted(t_low))
-    
+
     high_f = scipy.interpolate.UnivariateSpline(t_high, c_high, k=5, s=5)
     low_f = scipy.interpolate.UnivariateSpline(t_low, c_low, k=5, s=5)
 
@@ -90,7 +88,16 @@ def interpolation_system(data_list):
     return low_f, mid_f, high_f
 
 
-def pre_fit_sampler(data, I_step=None, samples=10, backward_flag=True, forward_flag=False, backward_upper_bound=None, backward_lower_bound=None, forward_lower_bound=None):
+def pre_fit_sampler(
+    data,
+    I_step=None,
+    samples=10,
+    backward_flag=True,
+    forward_flag=False,
+    backward_upper_bound=None,
+    backward_lower_bound=None,
+    forward_lower_bound=None,
+):
     if I_step is None:
         I_step = data["global"]["mov"][-1]["I_step"]
     x_list = []
@@ -101,9 +108,13 @@ def pre_fit_sampler(data, I_step=None, samples=10, backward_flag=True, forward_f
             if backward_lower_bound is not None:
                 idx = np.argmax(
                     np.absolute(
-                        (d["cur"][top_idx:] / data["interpolation"]
-                         (d["t_abs"][top_idx:])) - 1
-                    ) < backward_lower_bound
+                        (
+                            d["cur"][top_idx:]
+                            / data["interpolation"](d["t_abs"][top_idx:])
+                        )
+                        - 1
+                    )
+                    < backward_lower_bound
                 )
                 if idx == 0:
                     idx = len(d["cur"])
@@ -114,9 +125,13 @@ def pre_fit_sampler(data, I_step=None, samples=10, backward_flag=True, forward_f
             if backward_upper_bound is not None:
                 beg_idx = np.argmax(
                     np.absolute(
-                        (d["cur"][top_idx:] / data["interpolation"]
-                         (d["t_abs"][top_idx:])) - 1
-                    ) < backward_upper_bound
+                        (
+                            d["cur"][top_idx:]
+                            / data["interpolation"](d["t_abs"][top_idx:])
+                        )
+                        - 1
+                    )
+                    < backward_upper_bound
                 )
                 beg_idx += top_idx
                 if beg_idx > idx:
@@ -127,25 +142,16 @@ def pre_fit_sampler(data, I_step=None, samples=10, backward_flag=True, forward_f
             f = scipy.interpolate.interp1d(
                 d["t_rel"][beg_idx:idx], d["cur"][beg_idx:idx], kind="cubic"
             )
-            t = np.linspace(
-                d["t_rel"][beg_idx],
-                d["t_rel"][idx-1],
-                samples
-            )
-            t_global = np.linspace(
-                d["t_abs"][beg_idx],
-                d["t_abs"][idx-1],
-                samples
-            )
+            t = np.linspace(d["t_rel"][beg_idx], d["t_rel"][idx - 1], samples)
+            t_global = np.linspace(d["t_abs"][beg_idx], d["t_abs"][idx - 1], samples)
             cur = f(t) / data["interpolation"](t_global) - 1
             x_list.append(["backward", d["I_max"], d["I_max"] + I_step, t])
             y_list.append(cur)
         if d["kind"] == "forward" and forward_flag:
             if forward_lower_bound is not None:
                 idx = np.argmax(
-                    np.absolute(
-                        (d["cur"] / data["interpolation"](d["t_abs"])) - 1
-                    ) < forward_lower_bound
+                    np.absolute((d["cur"] / data["interpolation"](d["t_abs"])) - 1)
+                    < forward_lower_bound
                 )
                 if idx == 0:
                     idx = len(d["cur"])
@@ -155,16 +161,8 @@ def pre_fit_sampler(data, I_step=None, samples=10, backward_flag=True, forward_f
             f = scipy.interpolate.interp1d(
                 d["t_rel"][:idx], d["cur"][:idx], kind="cubic"
             )
-            t = np.linspace(
-                d["t_rel"][1],
-                d["t_rel"][idx-1],
-                samples
-            )
-            t_global = np.linspace(
-                d["t_abs"][1],
-                d["t_abs"][idx-1],
-                samples
-            )
+            t = np.linspace(d["t_rel"][1], d["t_rel"][idx - 1], samples)
+            t_global = np.linspace(d["t_abs"][1], d["t_abs"][idx - 1], samples)
             cur = f(t) / data["interpolation"](t_global) - 1
             x_list.append(["forward", d["I_max"] - I_step, d["I_max"], t])
             y_list.append(cur)
@@ -175,50 +173,54 @@ def forward_dist(x, module, I_max_old, I_max):
     if hasattr(x, "__iter__"):
         y = np.empty_like(x)
         for i, e in enumerate(x):
-            y[i] = -module if e <= I_max_old else module * \
-                (((e - I_max_old) / (I_max - I_max_old)) - 1)
+            y[i] = (
+                -module
+                if e <= I_max_old
+                else module * (((e - I_max_old) / (I_max - I_max_old)) - 1)
+            )
         return y
     if x <= I_max_old:
-        return - module
+        return -module
     else:
         return module * (((x - I_max_old) / (I_max - I_max_old)) - 1)
 
 
-def resid_func(params, x_list, y_list):
+def resid_func(params, x_list, y_list, adaptive_c=False):
     I_star = params["I_star"].value
     exponent = 1 / (params["k"].value * 2)
-    c = params["c"].value
-    print("Values:", "I_star", I_star, "k", params["k"].value)
+    if not adaptive_c:
+        c = params["c"].value
+    else:
+        c = nt.standard_c(0.0, x_list[0][1], I_star, exponent)
+    print("Values:", "I_star", I_star, "k", params["k"].value, "c", c)
     resid = np.array([])
 
     def compare(x, y):
-        y[y==0] = 1.0
+        y[y == 0] = 1.0
         if x[0] == "backward":
-            module = nt.stationary_dist(
-                x[1], x[2], I_star, exponent, c) * 2
+            module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
             ana_current = np.asarray(
                 nt.current_generic(
-                    x[3], lambda x: module, x[2],
-                    (x[2] / 3) * 2, I_star, exponent, c
+                    x[3], lambda x: module, x[2], (x[2] / 3) * 2, I_star, exponent, c
                 )
             )
-            return ((y - ana_current) / y)
+            return (y - ana_current) / y
         elif x[0] == "forward":
-            module = nt.stationary_dist(
-                x[1], x[2], I_star, exponent, c) * 2
+            module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
             ana_current = np.asarray(
                 nt.current_generic(
                     x[3],
                     lambda p: forward_dist(p, module, x[1], x[2]),
                     x[2],
                     (x[2] / 3) * 2,
-                    I_star, exponent, c
+                    I_star,
+                    exponent,
+                    c,
                 )
             )
-            return ((y - ana_current) / y)
+            return (y - ana_current) / y
 
-    blocks = Parallel(NCORES)(delayed(compare)(x, y)
-                          for x, y in zip(x_list, y_list))
+    blocks = Parallel(NCORES)(delayed(compare)(x, y) for x, y in zip(x_list, y_list))
 
     for b in blocks:
         resid = np.append(resid, b)
@@ -226,3 +228,46 @@ def resid_func(params, x_list, y_list):
     resid[np.isinf(resid)] = 1e10
     print("Error:", np.sum(np.power(resid, 2)))
     return resid
+
+
+def ana_current(params, x_list, y_list):
+    I_star = params["I_star"].value
+    exponent = 1 / (params["k"].value * 2)
+    c = params["c"].value
+    print("Values:", "I_star", I_star, "k", params["k"].value)
+
+    originals = np.array([])
+    vals = np.array([])
+
+    def compare(x, y):
+        y[y == 0] = 1.0
+        if x[0] == "backward":
+            module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
+            ana_current = np.asarray(
+                nt.current_generic(
+                    x[3], lambda x: module, x[2], (x[2] / 3) * 2, I_star, exponent, c
+                )
+            )
+            return y, ana_current
+        elif x[0] == "forward":
+            module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
+            ana_current = np.asarray(
+                nt.current_generic(
+                    x[3],
+                    lambda p: forward_dist(p, module, x[1], x[2]),
+                    x[2],
+                    (x[2] / 3) * 2,
+                    I_star,
+                    exponent,
+                    c,
+                )
+            )
+            return y, ana_current
+
+    blocks = Parallel(NCORES)(delayed(compare)(x, y) for x, y in zip(x_list, y_list))
+
+    for b in blocks:
+        vals = np.append(vals, b[1])
+        originals = np.append(originals, b[0])
+
+    return originals, vals
