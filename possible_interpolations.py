@@ -27,7 +27,7 @@ parser.add_argument(
     "-interpolation",
     help="interpolation type",
     required=True,
-    choices=["spline", "fit", "basic"],
+    choices=["spline", "fit", "basic", "forfun"],
 )
 
 # parse arguments
@@ -216,21 +216,21 @@ for s in slices:
     plt.plot(s[0], np.ones_like(s[0]) * s[2], c="black")
 
 
-def moving_average(x, w):
-    return np.convolve(x, np.ones(w), "valid") / w
+def moving_average(x, n=3):
+    return np.convolve(x, np.ones(n), "valid") / n
 
 
 # plt.figure(figsize=(18, 6))
-plt.figure(figsize=(12, 6))
+# plt.figure(figsize=(12, 6))
 
-for s in slices:
-    plt.plot(s[0], s[1] / fixed_value, linewidth=0.5)
-    plt.plot(s[0], moving_average(s[1] / fixed_value, n=30), linewidth=0.5, c="black")
-plt.yscale("log")
+# for s in slices:
+#     plt.plot(s[0], s[1] / fixed_value, linewidth=0.5)
+#     plt.plot(s[0], moving_average(s[1] / fixed_value, n=30), linewidth=0.5, c="black")
+# plt.yscale("log")
 
-plt.twinx()
-for s in slices:
-    plt.plot(s[0], np.ones_like(s[0]) * s[2], c="black")
+# plt.twinx()
+# for s in slices:
+#     plt.plot(s[0], np.ones_like(s[0]) * s[2], c="black")
 
 
 slices = []
@@ -325,6 +325,13 @@ f_basic = scipy.interpolate.interp1d(
     fill_value=np.nan,
 )
 
+f_forfun = scipy.interpolate.interp1d(
+    np.array([p[0] for p in points]),
+    np.array([p[3] for p in points]),
+    kind="next",
+    bounds_error=False,
+    fill_value=np.nan,
+)
 
 # plt.figure(figsize=(18, 6))
 plt.figure(figsize=(12, 6))
@@ -533,13 +540,49 @@ for x, y in zip(basic_x_nonorm, basic_y_list):
 plt.ylim(top=0.0)
 plt.tight_layout()
 
+forfun_x_raw = []
+forfun_x_nonorm = []
+forfun_y_raw = []
+forfun_x_list = []
+forfun_y_list = []
+
+for i in range(1, len(new_slices)):
+    from_value = new_slices[i - 1][2]
+    to_value = new_slices[i][2]
+    times = new_slices[i][0] - new_slices[i][0][0]
+    the_function = f_forfun(new_slices[i][0])
+    values = new_slices[i][1] / the_function
+
+    avg_times = moving_average(times, slice)
+    avg_values = moving_average(values, slice)
+
+    avg_times = avg_times[::skipping]
+    avg_values = avg_values[::skipping]
+
+    tmp = moving_average(new_slices[i][0], slice)[::skipping]
+
+    tmp = tmp[~np.isnan(avg_values)]
+    avg_times = avg_times[~np.isnan(avg_values)]
+    avg_values = avg_values[~np.isnan(avg_values)]
+
+    forfun_x_raw.append(new_slices[i][0])
+    forfun_y_raw.append(values)
+
+    forfun_x_nonorm.append(tmp)
+    forfun_x_list.append(("forward", from_value, to_value, avg_times))
+    forfun_y_list.append(avg_values - 1)
+
+plt.figure()
+for x, y in zip(forfun_x_list, forfun_y_list):
+    plt.plot(x[-1], y, c="navy")
+plt.savefig("forfun.png")
 
 if INTERPOLATION == "spline":
 
     if TYPE == "single":
         pars = lmfit.Parameters()
-        pars.add("I_star", value=5.0, min=0.0)
-        pars.add("k", value=0.33, min=0.0)
+        pars.add("I_star", value=5.0, min=0.0, max=1000.0)
+        pars.add("k", value=0.33, min=0.0, max=5.0)
         pars.add("c", value=C, vary=False)
 
         spline_result = lmfit.minimize(
@@ -549,13 +592,13 @@ if INTERPOLATION == "spline":
             spline_result.params, spline_x_list, spline_y_list
         )
 
-        with open("spline_result.pkl", "wb") as f:
+        with open(f"spline_result_c_{C}_t_{TYPE}_i_{INTERPOLATION}.pkl", "wb") as f:
             pickle.dump({"result": spline_result, "c1": spline_c1, "c2": spline_c2,}, f)
 
     elif TYPE == "iterative":
         pars = lmfit.Parameters()
-        pars.add("I_star", value=5.0, min=0.0)
-        pars.add("k", value=0.33, min=0.0)
+        pars.add("I_star", value=5.0, min=0.0, max=1000.0)
+        pars.add("k", value=0.33, min=0.0, max=5.0)
         pars.add("c", value=C, vary=False)
 
         spline_result_list = []
@@ -569,17 +612,79 @@ if INTERPOLATION == "spline":
                 spline_result.params, spline_x_list, spline_y_list
             )
             spline_result_list.append((spline_result, spline_c1, spline_c2))
-            pars = spline_result.params
+            pars = lmfit.Parameters()
+            pars.add(
+                "I_star",
+                value=spline_result.params["I_star"].value,
+                min=0.0,
+                max=1000.0,
+            )
+            pars.add("k", value=spline_result.params["k"].value, min=0.0, max=5.0)
+            pars.add("c", value=C, vary=False)
 
-        with open("iterative_spline_result.pkl", "wb") as f:
-            pickle.dump(spline_result_list, f)
+            with open(
+                f"iterative_spline_result_c_{C}_t_{TYPE}_i_{INTERPOLATION}_iter_{i}.pkl",
+                "wb",
+            ) as f:
+                pickle.dump(spline_result_list, f)
+
+elif INTERPOLATION == "forfun":
+
+    if TYPE == "single":
+        pars = lmfit.Parameters()
+        pars.add("I_star", value=5.0, min=0.0, max=1000.0)
+        pars.add("k", value=0.33, min=0.0, max=5.0)
+        pars.add("c", value=C, vary=False)
+
+        forfun_result = lmfit.minimize(
+            fit_functions.resid_func, pars, args=(forfun_x_list, forfun_y_list)
+        )
+        forfun_c1, forfun_c2 = fit_functions.ana_current(
+            forfun_result.params, forfun_x_list, forfun_y_list
+        )
+
+        with open(f"forfun_result_c_{C}_t_{TYPE}_i_{INTERPOLATION}.pkl", "wb") as f:
+            pickle.dump({"result": forfun_result, "c1": forfun_c1, "c2": forfun_c2,}, f)
+
+    elif TYPE == "iterative":
+        pars = lmfit.Parameters()
+        pars.add("I_star", value=5.0, min=0.0, max=1000.0)
+        pars.add("k", value=0.33, min=0.0, max=5.0)
+        pars.add("c", value=C, vary=False)
+
+        forfun_result_list = []
+        for i in tqdm(range(5, len(forfun_x_list))):
+            forfun_result = lmfit.minimize(
+                fit_functions.resid_func,
+                pars,
+                args=(forfun_x_list[:i], forfun_y_list[:i]),
+            )
+            forfun_c1, forfun_c2 = fit_functions.ana_current(
+                forfun_result.params, forfun_x_list, forfun_y_list
+            )
+            forfun_result_list.append((forfun_result, forfun_c1, forfun_c2))
+            pars = lmfit.Parameters()
+            pars.add(
+                "I_star",
+                value=forfun_result.params["I_star"].value,
+                min=0.0,
+                max=1000.0,
+            )
+            pars.add("k", value=forfun_result.params["k"].value, min=0.0, max=5.0)
+            pars.add("c", value=C, vary=False)
+
+            with open(
+                f"iterative_forfun_result_c_{C}_t_{TYPE}_i_{INTERPOLATION}_iter_{i}.pkl",
+                "wb",
+            ) as f:
+                pickle.dump(forfun_result_list, f)
 
 elif INTERPOLATION == "fit":
 
     if TYPE == "single":
         pars = lmfit.Parameters()
-        pars.add("I_star", value=5.0, min=0.0)
-        pars.add("k", value=0.33, min=0.0)
+        pars.add("I_star", value=5.0, min=0.0, max=1000.0)
+        pars.add("k", value=0.33, min=0.0, max=5.0)
         pars.add("c", value=C, vary=False)
 
         fit_result = lmfit.minimize(
@@ -589,13 +694,13 @@ elif INTERPOLATION == "fit":
             fit_result.params, fit_x_list, fit_y_list
         )
 
-        with open("fit_result.pkl", "wb") as f:
+        with open(f"fit_result_c_{C}_t_{TYPE}_i_{INTERPOLATION}.pkl", "wb") as f:
             pickle.dump({"result": fit_result, "c1": fit_c1, "c2": fit_c2,}, f)
 
     elif TYPE == "iterative":
         pars = lmfit.Parameters()
-        pars.add("I_star", value=5.0, min=0.0)
-        pars.add("k", value=0.33, min=0.0)
+        pars.add("I_star", value=5.0, min=0.0, max=1000.0)
+        pars.add("k", value=0.33, min=0.0, max=5.0)
         pars.add("c", value=C, vary=False)
 
         fit_result_list = []
@@ -607,17 +712,25 @@ elif INTERPOLATION == "fit":
                 fit_result.params, fit_x_list, fit_y_list
             )
             fit_result_list.append((fit_result, fit_c1, fit_c2))
-            pars = fit_result.params
+            pars = lmfit.Parameters()
+            pars.add(
+                "I_star", value=fit_result.params["I_star"].value, min=0.0, max=1000.0
+            )
+            pars.add("k", value=fit_result.params["k"].value, min=0.0, max=5.0)
+            pars.add("c", value=C, vary=False)
 
-        with open("iterative_fit_result.pkl", "wb") as f:
-            pickle.dump(fit_result_list, f)
+            with open(
+                f"iterative_fit_result_c_{C}_t_{TYPE}_i_{INTERPOLATION}_iter_{i}.pkl",
+                "wb",
+            ) as f:
+                pickle.dump(fit_result_list, f)
 
 elif INTERPOLATION == "basic":
 
     if TYPE == "single":
         pars = lmfit.Parameters()
-        pars.add("I_star", value=5.0, min=0.0)
-        pars.add("k", value=0.33, min=0.0)
+        pars.add("I_star", value=5.0, min=0.0, max=1000.0)
+        pars.add("k", value=0.33, min=0.0, max=5.0)
         pars.add("c", value=C, vary=False)
 
         basic_result = lmfit.minimize(
@@ -627,13 +740,13 @@ elif INTERPOLATION == "basic":
             basic_result.params, basic_x_list, basic_y_list
         )
 
-        with open("basic_result.pkl", "wb") as f:
+        with open(f"basic_result_c_{C}_t_{TYPE}_i_{INTERPOLATION}.pkl", "wb") as f:
             pickle.dump({"result": basic_result, "c1": basic_c1, "c2": basic_c2,}, f)
 
     elif TYPE == "iterative":
         pars = lmfit.Parameters()
-        pars.add("I_star", value=5.0, min=0.0)
-        pars.add("k", value=0.33, min=0.0)
+        pars.add("I_star", value=5.0, min=0.0, max=1000.0)
+        pars.add("k", value=0.33, min=0.0, max=5.0)
         pars.add("c", value=C, vary=False)
 
         basic_result_list = []
@@ -647,8 +760,16 @@ elif INTERPOLATION == "basic":
                 basic_result.params, basic_x_list, basic_y_list
             )
             basic_result_list.append((basic_result, basic_c1, basic_c2))
-            pars = basic_result.params
+            pars = lmfit.Parameters()
+            pars.add(
+                "I_star", value=basic_result.params["I_star"].value, min=0.0, max=1000.0
+            )
+            pars.add("k", value=basic_result.params["k"].value, min=0.0, max=5.0)
+            pars.add("c", value=C, vary=False)
 
-        with open("iterative_basic_result.pkl", "wb") as f:
-            pickle.dump(basic_result_list, f)
+            with open(
+                f"iterative_basic_result_c_{C}_t_{TYPE}_i_{INTERPOLATION}_iter_{i}.pkl",
+                "wb",
+            ) as f:
+                pickle.dump(basic_result_list, f)
 

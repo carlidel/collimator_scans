@@ -192,6 +192,10 @@ def resid_func(params, x_list, y_list, adaptive_c=False):
         c = params["c"].value
     else:
         c = nt.standard_c(0.0, x_list[0][1], I_star, exponent)
+
+    if np.isnan(c) or np.isinf(c):
+        return np.ones(x_list[0][3].size * len(x_list)) * np.inf
+
     print("Values:", "I_star", I_star, "k", params["k"].value, "c", c)
     resid = np.array([])
 
@@ -204,7 +208,7 @@ def resid_func(params, x_list, y_list, adaptive_c=False):
                     x[3], lambda x: module, x[2], (x[2] / 3) * 2, I_star, exponent, c
                 )
             )
-            return (y - ana_current) / y
+            return y - ana_current
         elif x[0] == "forward":
             module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
             ana_current = np.asarray(
@@ -218,12 +222,18 @@ def resid_func(params, x_list, y_list, adaptive_c=False):
                     c,
                 )
             )
-            return (y - ana_current) / y
+            return y - ana_current
 
     blocks = Parallel(NCORES)(delayed(compare)(x, y) for x, y in zip(x_list, y_list))
 
     for b in blocks:
         resid = np.append(resid, b)
+
+    if np.any(np.isnan(resid)) or np.any(np.isinf(resid)):
+        print("NaN or Inf in resid_func")
+        print(resid)
+        print("Values:", "I_star", I_star, "k", params["k"].value, "c", c)
+        raise ValueError("NaN or Inf in resid_func")
 
     resid[np.isinf(resid)] = 1e10
     print("Error:", np.sum(np.power(resid, 2)))

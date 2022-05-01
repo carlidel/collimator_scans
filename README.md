@@ -79,6 +79,20 @@ Part of the scan details that are saved in the details file:
 			 - TCP.C6L7.B1:MEAS_LVDT_LU
 			 - TCP.C6L7.B1:MEAS_LVDT_RD
 			 - TCP.C6L7.B1:MEAS_LVDT_RU
+-  6052 BEAM 2
+	 - TCP_IR7_B1V
+		 - lowres
+			 - TCP.D6R7.B2:MEAS_LVDT_LU
+		 - hires
+			 - BLMTI.06R7.B2I10_TCP.C6R7.B2:LOSS_RS09
+			 - BLMEI.06R7.B2I10_TCP.A6R7.B2:LOSS_RS09
+	 
+     - TCP_IR7_B1H
+		 - lowres
+			 - TCP.C6R7.B2:MEAS_LVDT_LU
+		 - hires
+			 - BLMEI.06R7.B2I10_TCP.A6R7.B2:LOSS_RS09
+			 - BLMTI.06R7.B2I10_TCP.D6R7.B2:LOSS_RS09
 -  6194
 	 - TCP_IR7_B1V
 		 - lowres
