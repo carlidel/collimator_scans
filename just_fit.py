@@ -29,7 +29,7 @@ label = args.label
 
 with open(filename, "rb") as f:
     to_fit = pickle.load(f)
-
+print(list(to_fit.keys()))
 key = list(to_fit.keys())[idx]
 print(label, key)
 fit_x_list = to_fit[key][0]

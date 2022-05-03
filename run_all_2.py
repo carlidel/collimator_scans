@@ -10,15 +10,15 @@ def run_command(cmd):
 
 
 processes = []
-for i in range(8):
+for i in range(4):
     command = f"python just_fit.py -i {i} -k 2.1 -l b1_v -f to_fit_b1_v.pkl"
     processes.append(run_command(command))
 
-for p in processes:
-    p.wait()
-processes = []
+    # for p in processes:
+    #     p.wait()
+    # processes = []
 
-for i in range(8):
+    # for i in range(4):
     command = f"python just_fit.py -i {i} -k 2.1 -l b2_v -f to_fit_b2_v.pkl"
     processes.append(run_command(command))
 
