@@ -9,34 +9,47 @@ def run_command(cmd):
     return p
 
 
+# modules_to_test = [1000, 750, 500, 250, 100, 1250, 1500, 1750, 2000]
+modules_to_test = [1000, 750, 500, 250, 100, 1250, 1500, 1750, 2000]
+
 processes = []
-for i in range(4):
-    command = f"python just_fit.py -i {i} -k 2.1 -l b1_v -f to_fit_b1_v.pkl"
-    processes.append(run_command(command))
+
+for module in modules_to_test:
+    # processes = []
+    for i in range(4):
+        command = (
+            f"python just_fit.py -i {i} -k 2.1 -l b1_v -f to_fit_b1_v.pkl -m {module}"
+        )
+        processes.append(run_command(command))
+
+    # for p in processes:
+    #     p.wait()
+
+    for i in range(4):
+        command = (
+            f"python just_fit.py -i {i} -k 2.1 -l b2_v -f to_fit_b2_v.pkl -m {module}"
+        )
+        processes.append(run_command(command))
 
     # for p in processes:
     #     p.wait()
     # processes = []
 
-    # for i in range(4):
-    command = f"python just_fit.py -i {i} -k 2.1 -l b2_v -f to_fit_b2_v.pkl"
-    processes.append(run_command(command))
-
-for p in processes:
-    p.wait()
-processes = []
-
-for i in range(4):
-    command = f"python just_fit.py -i {i} -k 2.1 -l b1_h -f to_fit_b1_h.pkl"
-    processes.append(run_command(command))
+    for i in range(4):
+        command = (
+            f"python just_fit.py -i {i} -k 2.1 -l b1_h -f to_fit_b1_h.pkl -m {module}"
+        )
+        processes.append(run_command(command))
 
     # for p in processes:
     #     p.wait()
     # processes = []
 
-    # for i in range(1):
-    command = f"python just_fit.py -i {i} -k 2.1 -l b2_h -f to_fit_b2_h.pkl"
-    processes.append(run_command(command))
+    for i in range(4):
+        command = (
+            f"python just_fit.py -i {i} -k 2.1 -l b2_h -f to_fit_b2_h.pkl -m {module}"
+        )
+        processes.append(run_command(command))
 
 for p in processes:
     p.wait()

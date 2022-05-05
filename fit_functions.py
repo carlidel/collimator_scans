@@ -191,12 +191,14 @@ def resid_func(params, x_list, y_list, adaptive_c=False):
     if not adaptive_c:
         c = params["c"].value
     else:
-        c = nt.standard_c(0.0, x_list[0][1], I_star, exponent)
+        c = nt.standard_c(0.0, 50, I_star, exponent)
 
     if np.isnan(c) or np.isinf(c):
         return np.ones(x_list[0][3].size * len(x_list)) * np.inf
 
     print("Values:", "I_star", I_star, "k", params["k"].value, "c", c)
+    print("D bottom:", nt.D(x_list[0][1], I_star, exponent, c))
+    print("D top:", nt.D(x_list[-1][1], I_star, exponent, c))
     resid = np.array([])
 
     def compare(x, y):
@@ -210,21 +212,25 @@ def resid_func(params, x_list, y_list, adaptive_c=False):
             )
             return y - ana_current
         elif x[0] == "forward":
-            module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
+            # module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
+            module = params["module"]
             ana_current = np.asarray(
                 nt.current_generic(
                     x[3],
                     lambda p: forward_dist(p, module, x[1], x[2]),
                     x[2],
-                    (x[2] / 3) * 2,
+                    (x[2] / 3),
                     I_star,
                     exponent,
                     c,
                 )
             )
+            # print("module", module)
+            # print("ana_current", ana_current[0], ana_current[-1])
             return y - ana_current
 
-    blocks = Parallel(NCORES)(delayed(compare)(x, y) for x, y in zip(x_list, y_list))
+    # blocks = Parallel(NCORES)(delayed(compare)(x, y) for x, y in zip(x_list, y_list))
+    blocks = [compare(x, y) for x, y in zip(x_list, y_list)]
 
     for b in blocks:
         resid = np.append(resid, b)
@@ -260,7 +266,8 @@ def ana_current(params, x_list, y_list):
             )
             return y, ana_current
         elif x[0] == "forward":
-            module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
+            # module = nt.stationary_dist(x[1], x[2], I_star, exponent, c) * 2
+            module = params["module"]
             ana_current = np.asarray(
                 nt.current_generic(
                     x[3],
