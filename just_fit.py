@@ -38,7 +38,7 @@ fit_x_list = to_fit[key][0]
 fit_y_list = to_fit[key][1]
 
 pars = lmfit.Parameters()
-pars.add("I_star", value=10.0, min=0.0, max=200.0)
+pars.add("I_star", value=10.0, min=0.0, max=62.147)
 pars.add("k", value=0.50, min=0.0, max=k_val)
 pars.add("c", value=1.0, vary=False)
 pars.add("module", value=module, vary=False)

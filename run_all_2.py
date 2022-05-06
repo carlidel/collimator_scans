@@ -16,11 +16,11 @@ processes = []
 
 for module in modules_to_test:
     # processes = []
-    for i in range(4):
-        command = (
-            f"python just_fit.py -i {i} -k 2.1 -l b1_v -f to_fit_b1_v.pkl -m {module}"
-        )
-        processes.append(run_command(command))
+    # for i in range(4):
+    #     command = (
+    #         f"python just_fit.py -i {i} -k 2.1 -l b1_v -f to_fit_b1_v.pkl -m {module}"
+    #     )
+    #     processes.append(run_command(command))
 
     # for p in processes:
     #     p.wait()
@@ -35,21 +35,21 @@ for module in modules_to_test:
     #     p.wait()
     # processes = []
 
-    for i in range(4):
-        command = (
-            f"python just_fit.py -i {i} -k 2.1 -l b1_h -f to_fit_b1_h.pkl -m {module}"
-        )
-        processes.append(run_command(command))
+    # for i in range(4):
+    #     command = (
+    #         f"python just_fit.py -i {i} -k 2.1 -l b1_h -f to_fit_b1_h.pkl -m {module}"
+    #     )
+    #     processes.append(run_command(command))
 
     # for p in processes:
     #     p.wait()
     # processes = []
 
-    for i in range(4):
-        command = (
-            f"python just_fit.py -i {i} -k 2.1 -l b2_h -f to_fit_b2_h.pkl -m {module}"
-        )
-        processes.append(run_command(command))
+    # for i in range(4):
+    #     command = (
+    #         f"python just_fit.py -i {i} -k 2.1 -l b2_h -f to_fit_b2_h.pkl -m {module}"
+    #     )
+    #     processes.append(run_command(command))
 
 for p in processes:
     p.wait()
